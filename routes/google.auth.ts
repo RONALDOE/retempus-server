@@ -37,7 +37,7 @@
             const refreshToken = tokens.refresh_token;
             
             oAuth2Client.setCredentials({ access_token: accessToken, refresh_token: refreshToken });
-            res.send('Authentication successful!');
+            res.send(oAuth2Client);
         } catch (error) {
             console.error('Error authenticating:', error);
             res.status(500).send('Authentication failed.');
