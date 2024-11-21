@@ -1,5 +1,6 @@
 import express, {  Router, Request, Response  } from "express";
 import dotenv from 'dotenv'
+import { userExists } from "../utils/utils";
 import {google,  } from 'googleapis'
 dotenv.config()
 
@@ -17,6 +18,19 @@ var drive = google.drive({
 
 //Ruta para listar archivos
 router.get('/files', async (req, res) => {
+
+  const   accessToken   = req.query.accessToken as string;
+
+  if (!accessToken ) {
+    res.status(400).send("Todos los tokens son requeridos");
+    return; // Termina la ejecución
+  }
+
+//DEBEMOS PONER ESTO AL INICIO DE TODAS LAS RUTAS QUE REQUIERAN AUTENTICACIÓN
+  oAuth2Client.setCredentials({
+    access_token: accessToken,
+  });
+
     try {
       const response = await drive.files.list({
         fields: 'files(name, id)', // Specify the fields to include in the response
@@ -31,12 +45,12 @@ router.get('/files', async (req, res) => {
 
 router.get('/filesbytypes', async (req: Request, res: Response) =>{
 
-    const {types}  = req.body.types
+    const {types}  = req.params
     const files = []
 
     try {
         const response = await drive.files.list({
-            // q: `mimeType=\${types} \ `,
+            q: `mimeType=\${types} \ `,
           fields: 'files(name, id)', // Specify the fields to include in the response
         });
         const files = response.data.files;

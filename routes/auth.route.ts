@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
-import db from '../config/db.config'; // Importa la conexión a la base de datos
+import {db} from '../utils/utils'; // Importa la conexión a la base de datos
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET; // Cambia esto por un valor seguro

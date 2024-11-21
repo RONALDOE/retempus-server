@@ -3,8 +3,7 @@ import dotenv from 'dotenv';
 import files from './routes/files.route'
 import gauth from './routes/google.auth'
 import auth from './routes/auth.route'
-import db from './config/db.config';
-
+import { db,  } from './utils/utils.ts';
 dotenv.config();
 const app: Application = express();
 const port: number = process.env.PORT ? parseInt(process.env.PORT) : 3000;
@@ -13,6 +12,8 @@ console.log(`port: ${process.env.PORT}`);
 app.get('/', (req: Request, res: Response) => {
   res.send('Hello, World!');
 });
+
+
 
 app.use(express.json());
 
