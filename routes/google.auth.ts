@@ -3,7 +3,6 @@ import dotenv from "dotenv";
 import { google } from "googleapis";
 import { db, userExists } from "../utils/utils"; // Importa la conexión a la base de datos
 import axios from "axios";
-import { accessSync } from "fs";
 
 dotenv.config();
 
@@ -145,20 +144,7 @@ router.get('/validate-token', async (req: Request, res: Response) => {
        return;
       }
 
-    // Obtener el refreshToken del usuario
-    const [connection]: any = await db.query(
-      `SELECT refreshToken FROM connections WHERE userId = ?`,
-      [userId]
-    );
-
-    if (!connection || !connection[0].refreshToken) {
-      
-      res.status(404).send("No se encontró el refresh token para el usuario.");
-      return;
-    }
-
-
-    const refreshToken = connection[0].refreshToken;
+    
 
     // Verificar el access token actual
     const tokenInfoUrl = `https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${actualAccessToken || ''}`;
@@ -177,6 +163,22 @@ router.get('/validate-token', async (req: Request, res: Response) => {
     } catch (error) {
       console.log("AccessToken inválido. Intentando regenerarlo...");
     }
+
+
+    //Si el accestoken esta mal, regenerarlo
+    const [connection]: any = await db.query(
+      `SELECT refreshToken FROM connections WHERE userId = ?`,
+      [userId]
+    );
+
+    if (!connection || !connection[0].refreshToken) {
+      
+      res.status(404).send("No se encontró el refresh token para el usuario.");
+      return;
+    }
+
+
+    const refreshToken = connection[0].refreshToken;
 
     // Si el token es inválido, regenerarlo
     const tokenEndpoint = "https://www.googleapis.com/oauth2/v4/token";
@@ -202,6 +204,81 @@ router.get('/validate-token', async (req: Request, res: Response) => {
     console.error("Error durante la validación o regeneración del token:", error);
     res.status(500).send("Error interno del servidor.");
      return;
+  }
+
+});
+
+
+
+router.post("/revoke-token", async (req: Request, res: Response) => {
+  const userId = req.body.userId as string;
+  const accessToken = req.body.accessToken as string;
+    let email  
+
+  if (!userId) {
+    res.status(400).send("El parámetro `userId` es requerido.");
+    return; 
+  }
+
+  if (!accessToken) {
+    res.status(400).send("El parámetro `accessToken` es requerido.");
+    return;
+  }
+
+  try {
+    // Verificar si el usuario existe
+    const exists = await userExists(userId, "userId");
+    if (!exists) {
+      res.status(404).send("Usuario no encontrado.");
+      return; 
+    }
+
+    const tokenInfoUrl = `https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${accessToken || ''}`;
+    try {
+      console.log(tokenInfoUrl);
+      const response = await axios.get(tokenInfoUrl);
+
+      email = response.data.email;
+
+      // El token es válido
+      
+    } catch (error) {
+      console.log("AccessToken inválido. Intentando regenerarlo...");
+    }
+
+    // Realizar la solicitud de revocación a Google
+    const revokeEndpoint = "https://oauth2.googleapis.com/revoke";
+    const payload = `token=${accessToken}`;
+
+    await axios.post(revokeEndpoint, payload, {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+    });
+
+    console.log(`Access token revocado para el usuario con ID: ${userId}`);
+
+    // Eliminar el token de la base de datos
+    await db.query(
+      `DELETE FROM connections WHERE userId = ? AND email = ?`,
+      [userId, email]
+    );
+
+    res.status(200).send({
+      message: "Access token revocado y eliminado de la base de datos con éxito.",
+    });
+    return;
+  } catch (error) {
+    console.error("Error al revocar el token:", error);
+
+    // Detectar error específico de Google para token inválido
+    if (axios.isAxiosError(error) && error.response?.status === 400) {
+      res.status(400).send("El token ya fue revocado o es inválido.");
+      return;
+    }
+
+    res.status(500).send("Error interno del servidor.");
+    return;
   }
 });
 
