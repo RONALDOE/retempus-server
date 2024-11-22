@@ -4,7 +4,7 @@ import files from './routes/files.route'
 import gauth from './routes/google.auth'
 import auth from './routes/auth.route'
 import dashboard from './routes/dashboard.route'
-
+import cors from 'cors';
 
 import { db,  } from './utils/utils.ts';
 dotenv.config();
@@ -19,7 +19,7 @@ app.get('/', (req: Request, res: Response) => {
 
 
 app.use(express.json());
-
+app.use(cors());
 app.use('/files', files)
 app.use('/gauth', gauth)
 app.use('/auth', auth)

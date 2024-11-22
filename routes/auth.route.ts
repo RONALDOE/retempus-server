@@ -76,6 +76,7 @@ router.post('/register', validateRegisterInput, async (req: Request, res: Respon
 // Ruta: Iniciar sesión
 router.post('/login', validateLoginInput, async (req: Request, res: Response): Promise<void> => {
   const { usernameOrEmail, password } = req.body;
+  console.log(usernameOrEmail)
   try {
     const [users]: any = await db.query(
       `SELECT * FROM users WHERE email = ? OR username = ?`,
