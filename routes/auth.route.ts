@@ -62,7 +62,6 @@ router.post('/register', validateRegisterInput, async (req: Request, res: Respon
 
     res.status(201).json({
       message: "Usuario registrado exitosamente.",
-      userId: result.insertId,
     });
   } catch (error) {
     console.error(error);
@@ -132,6 +131,7 @@ const transporter = nodemailer.createTransport({
   // Ruta: Solicitar restablecimiento de contraseña
   router.post('/forgot-password', async (req: Request, res: Response): Promise<void> => {
     const { email } = req.body;
+    console.log(email)
   
     if (!email) {
       res.status(400).json({
@@ -157,7 +157,7 @@ const transporter = nodemailer.createTransport({
         expiresIn: '1h',
       });
   
-      const resetLink = `http://localhost:3000/reset-password?token=${token}`; // Cambia la URL por la de tu frontend
+      const resetLink = `http://localhost:3000/reset/${token}`; // Cambia la URL por la de tu frontend
   
       // Enviar correo
       await transporter.sendMail({
@@ -185,7 +185,10 @@ const transporter = nodemailer.createTransport({
   // Ruta: Restablecer contraseña
   router.post('/reset-password', async (req: Request, res: Response): Promise<void> => {
     const { token, newPassword } = req.body;
-  
+    
+  console.log( token)
+  console.log( newPassword)
+
     if (!token || !newPassword) {
       res.status(400).json({
         error: "MISSING_DATA",
