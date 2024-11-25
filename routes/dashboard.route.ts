@@ -1,7 +1,8 @@
 import express, { Router, Request, Response } from "express";
 import dotenv from "dotenv";
-import { userExists } from "../utils/utils";
+import { userExists, db } from "../utils/utils";
 import { google } from "googleapis";
+
 dotenv.config();
 
 const router: Router = express();
@@ -20,8 +21,11 @@ var drive = google.drive({
   auth: oAuth2Client,
 });
 
-router.get("/driveData", async (req: Request, res: Response) => {
-  const accessToken = req.query.accessToken as string;
+
+
+router.get("/driveInfo", async (req: Request, res: Response) => {
+    const accessToken = req.query.accessToken as string;
+    console.log(accessToken)
 
   if (!accessToken) {
     res.status(400).send("Todos los tokens son requeridos");
@@ -49,43 +53,43 @@ router.get("/driveData", async (req: Request, res: Response) => {
     res.json(data);
     console.log(response.data)
   } catch (err) {
-    console.error("Error listing files:", err);
-    res.status(500).json({ error: "Failed to list files" });
+    console.error("Error listing drives:", err);
+    res.status(500).json({ error: "Failed to list drives" });
   }
 });
 
-// Ruta para obtener datos generales de Drive
-router.get("/driveData", async (req: Request, res: Response) => {
-    const accessToken = req.query.accessToken as string;
+// // Ruta para obtener datos generales de Drive
+// router.get("/driveData", async (req: Request, res: Response) => {
+//     const accessToken = req.query.accessToken as string;
   
-    if (!accessToken) {
-      res.status(400).send("Todos los tokens son requeridos");
-      return;
-    }
+//     if (!accessToken) {
+//       res.status(400).send("Todos los tokens son requeridos");
+//       return;
+//     }
   
-    oAuth2Client.setCredentials({
-      access_token: accessToken,
-    });
+//     oAuth2Client.setCredentials({
+//       access_token: accessToken,
+//     });
   
-    try {
-      const response = await drive.about.get({
-        fields: "storageQuota, user",
-      });
-      const data = {
-        storageQuota: {
-          limit: Number(response.data.storageQuota?.limit),
-          usage: Number(response.data.storageQuota?.usage),
-          usageInDrive: Number(response.data.storageQuota?.usageInDrive),
-          usageInDriveTrash: Number(response.data.storageQuota?.usageInDriveTrash),
-        },
-        user: response.data.user,
-      };
-      res.json(data);
-    } catch (err) {
-      console.error("Error fetching drive data:", err);
-      res.status(500).json({ error: "Failed to fetch drive data" });
-    }
-  });
+//     try {
+//       const response = await drive.about.get({
+//         fields: "storageQuota, user",
+//       });
+//       const data = {
+//         storageQuota: {
+//           limit: Number(response.data.storageQuota?.limit),
+//           usage: Number(response.data.storageQuota?.usage),
+//           usageInDrive: Number(response.data.storageQuota?.usageInDrive),
+//           usageInDriveTrash: Number(response.data.storageQuota?.usageInDriveTrash),
+//         },
+//         user: response.data.user,
+//       };
+//       res.json(data);
+//     } catch (err) {
+//       console.error("Error fetching drive data:", err);
+//       res.status(500).json({ error: "Failed to fetch drive data" });
+//     }
+//   });
   
   // Ruta para obtener archivos recientes
   router.get("/recentFiles", async (req: Request, res: Response) => {

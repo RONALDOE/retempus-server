@@ -128,6 +128,7 @@ router.get("/callback", async (req: Request, res: Response) => {
 router.get('/validate-token', async (req: Request, res: Response) => {
   const userId = req.query.userId as string;
   const actualAccessToken = req.query.actualAccessToken as string;
+  const refreshToken = req.query.refreshToken as string;
 
   if (!userId) {
     res.status(400).send("El parámetro `userId` es requerido.");
@@ -166,19 +167,12 @@ router.get('/validate-token', async (req: Request, res: Response) => {
 
 
     //Si el accestoken esta mal, regenerarlo
-    const [connection]: any = await db.query(
-      `SELECT refreshToken FROM connections WHERE userId = ?`,
-      [userId]
-    );
+   
 
-    if (!connection || !connection[0].refreshToken) {
-      
-      res.status(404).send("No se encontró el refresh token para el usuario.");
-      return;
-    }
+   
 
 
-    const refreshToken = connection[0].refreshToken;
+   
 
     // Si el token es inválido, regenerarlo
     const tokenEndpoint = "https://www.googleapis.com/oauth2/v4/token";
@@ -206,6 +200,47 @@ router.get('/validate-token', async (req: Request, res: Response) => {
      return;
   }
 
+});
+
+router.get('/get-refresh-tokens', async (req: Request, res: Response) => {
+  const userId = req.query.userId as string;
+
+  if (!userId) {
+    res.status(400).send("El parámetro `userId` es requerido.");
+    return;
+  }
+
+  try {
+    // Verificar si el usuario existe
+    const exists = await userExists(userId, "userId");
+    if (!exists) {
+      res.status(404).send("Usuario no encontrado.");
+      return;
+    }
+
+    // Buscar todos los refreshTokens en la base de datos para el usuario
+    const [tokens]: any = await db.query(
+      `SELECT refreshToken FROM connections WHERE userId = ?`,
+      [userId]
+    );
+
+    if (!tokens || tokens.length === 0) {
+      res.status(404).send("No se encontraron refreshTokens para este usuario.");
+      return;
+    }
+
+    // Extraer los refreshTokens como un array
+    const refreshTokens = tokens.map((token: { refreshToken: string }) => token.refreshToken);
+
+    console.log("RefreshTokens encontrados:", refreshTokens);
+
+    res.status(200).send({
+       refreshTokens,
+    });
+  } catch (error) {
+    console.error("Error al obtener los refreshTokens:", error);
+    res.status(500).send("Error interno del servidor.");
+  }
 });
 
 
@@ -277,6 +312,47 @@ router.post("/revoke-token", async (req: Request, res: Response) => {
       return;
     }
 
+    res.status(500).send("Error interno del servidor.");
+    return;
+  }
+});
+
+router.get('/handyInfo', async (req: Request, res: Response) => {
+  const userId = req.query.userId as string;
+
+  if (!userId) {
+    res.status(400).send("El parámetro `userId` es requerido.");
+    return; 
+  }
+
+  try {
+    // Verificar si el usuario existe
+    const exists = await userExists(userId, "userId");
+    if (!exists) {
+      res.status(404).send("Usuario no encontrado.");
+      return; 
+    }
+
+    const [connection]: any = await db.query(
+      `SELECT email, refreshToken FROM connections WHERE userId = ? order by connectedAt desc `,
+      [userId]
+    );
+
+
+    if (!connection || connection.length === 0) {
+      res.status(404).send("Usuario no tiene conexiones.");
+      return;
+    }
+
+    console.log(connection)
+
+    res.status(200).send({
+      userId,
+      connections: connection,
+    });
+    return; 
+  } catch (error) {
+    console.error("Error al obtener la información:", error);
     res.status(500).send("Error interno del servidor.");
     return;
   }
