@@ -51,7 +51,6 @@ router.get("/driveInfo", async (req: Request, res: Response) => {
       user: response.data.user,
     };
     res.json(data);
-    console.log(response.data)
   } catch (err) {
     console.error("Error listing drives:", err);
     res.status(500).json({ error: "Failed to list drives" });
@@ -107,16 +106,26 @@ router.get("/driveInfo", async (req: Request, res: Response) => {
     try {
       const response = await drive.files.list({
         pageSize: 5, // Número de archivos recientes
-        fields: "files(id, name, mimeType, modifiedTime)", // Campos a incluir
+        fields: "files(id, name, mimeType, modifiedTime, iconLink, webViewLink)", // Campos a incluir
         orderBy: "modifiedTime desc", // Ordenar por la fecha de modificación más reciente
       });
   
       const files = response.data.files || [];
+      console.log(files, files.map(file => ({
+        ...file,   // Desestructura las propiedades de cada archivo
+        accessToken  // Asegúrate de que el token esté aquí
+      })),)
   
       if (files.length === 0) {
         res.json({ message: "No se encontraron archivos recientes" });
       } else {
-        res.json(files);
+        res.json({
+            files: files.map(file => ({
+              ...file,   // Desestructura las propiedades de cada archivo
+              accessToken  // Asegúrate de que el token esté aquí
+            })),
+          });
+          
       }
     } catch (err) {
       console.error("Error fetching recent files:", err);

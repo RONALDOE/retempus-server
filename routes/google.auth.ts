@@ -59,8 +59,6 @@ router.get("/callback", async (req: Request, res: Response) => {
   const code = req.query.code as string;
   const state = req.query.state as string; // Recupera el state
   let userId: string;
-  console.log("State:", state);
-  console.log("Code:", code);
 
   var drive = google.drive({
     version: "v3",
@@ -150,7 +148,6 @@ router.get('/validate-token', async (req: Request, res: Response) => {
     // Verificar el access token actual
     const tokenInfoUrl = `https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${actualAccessToken || ''}`;
     try {
-      console.log(tokenInfoUrl);
       const response = await axios.get(tokenInfoUrl);
 
 

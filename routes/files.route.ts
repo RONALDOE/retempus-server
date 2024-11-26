@@ -1,6 +1,5 @@
 import express, { Router, Request, Response } from "express";
 import dotenv from "dotenv";
-import { userExists } from "../utils/utils";
 import { google } from "googleapis";
 dotenv.config();
 
@@ -15,12 +14,12 @@ const oAuth2Client = new google.auth.OAuth2(
   redirectUri
 );
 
-var drive = google.drive({
+const drive = google.drive({
   version: "v3",
   auth: oAuth2Client,
 });
 
-//Ruta para listar archivos
+// Ruta para listar archivos
 router.get("/files", async (req, res) => {
   const accessToken = req.query.accessToken as string;
 
@@ -45,6 +44,7 @@ router.get("/files", async (req, res) => {
   }
 });
 
+// Ruta para listar archivos por tipos
 router.get("/filesbytypes", async (req: Request, res: Response) => {
   const accessToken = req.query.accessToken as string;
   const types = req.query.types as string;
@@ -78,6 +78,55 @@ router.get("/filesbytypes", async (req: Request, res: Response) => {
   }
 });
 
+// Nueva ruta para descargar un archivo por ID
+router.get("/download", async (req: Request, res: Response) => {
+  const { fileId, accessToken } = req.query;
+  console.log(fileId, accessToken);
+
+  if (!fileId || !accessToken) {
+    res.status(400).json({ error: "fileId y accessToken son requeridos." });
+    return;
+  }
+
+  try {
+    // Configurar el cliente con el token del usuario
+    oAuth2Client.setCredentials({ access_token: accessToken as string });
+
+    // Obtener metadatos del archivo
+    const fileMetadata = await drive.files.get({
+      fileId: fileId as string,
+      fields: "name, mimeType",
+    });
+
+    const fileName = fileMetadata.data.name || "file";
+    const mimeType = fileMetadata.data.mimeType || "application/octet-stream";
+
+    // Configurar la respuesta para la descarga
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    res.setHeader("Content-Type", mimeType);
+
+    // Transmitir el archivo directamente al cliente
+    const fileStream = await drive.files.get(
+      { fileId: fileId as string, alt: "media" },
+      { responseType: "stream" }
+    );
+
+    fileStream.data
+      .on("end", () =>
+        console.log(`Archivo ${fileName} descargado correctamente.`)
+      )
+      .on("error", (err) => {
+        console.error("Error al transmitir el archivo:", err);
+        res.status(500).json({ error: "Error al descargar el archivo." });
+      })
+      .pipe(res); // Transmitir el contenido al cliente
+  } catch (error) {
+    console.error("Error al descargar el archivo:", error);
+    res.status(500).json({ error: "Error al descargar el archivo." });
+  }
+});
+
+// Ruta raíz
 router.get("/", (req: Request, res: Response) => {
   res.send("Files");
 });
