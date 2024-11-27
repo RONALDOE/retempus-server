@@ -25,7 +25,6 @@ var drive = google.drive({
 
 router.get("/driveInfo", async (req: Request, res: Response) => {
     const accessToken = req.query.accessToken as string;
-    console.log(accessToken)
 
   if (!accessToken) {
     res.status(400).send("Todos los tokens son requeridos");
@@ -111,10 +110,7 @@ router.get("/driveInfo", async (req: Request, res: Response) => {
       });
   
       const files = response.data.files || [];
-      console.log(files, files.map(file => ({
-        ...file,   // Desestructura las propiedades de cada archivo
-        accessToken  // Asegúrate de que el token esté aquí
-      })),)
+     
   
       if (files.length === 0) {
         res.json({ message: "No se encontraron archivos recientes" });

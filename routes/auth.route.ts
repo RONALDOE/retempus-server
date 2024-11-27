@@ -89,7 +89,6 @@ router.post(
   validateLoginInput,
   async (req: Request, res: Response): Promise<void> => {
     const { usernameOrEmail, password } = req.body;
-    console.log(usernameOrEmail);
     try {
       const [users]: any = await db.query(
         `SELECT * FROM users WHERE email = ? OR username = ?`,
@@ -159,7 +158,6 @@ router.post(
   "/forgot-password",
   async (req: Request, res: Response): Promise<void> => {
     const { email } = req.body;
-    console.log(email);
 
     if (!email) {
       res.status(400).json({
@@ -225,8 +223,6 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     const { token, newPassword } = req.body;
 
-    console.log(token);
-    console.log(newPassword);
 
     if (!token || !newPassword) {
       res.status(400).json({

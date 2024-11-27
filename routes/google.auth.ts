@@ -77,7 +77,6 @@ router.get("/callback", async (req: Request, res: Response) => {
   try {
     const tokenResponse = await oAuth2Client.getToken(code);
 
-    // console.log("Token response:", tokenResponse);
     const tokens = tokenResponse.tokens;
     const accessToken = tokens.access_token;
     const refreshToken = tokens.refresh_token;
@@ -98,7 +97,6 @@ router.get("/callback", async (req: Request, res: Response) => {
       return;
     }
 
-    console.log("User email:", userEmail);
 
     const [linkedEmails]: any = await db.query(
       `SELECT COUNT(*) AS count FROM connections WHERE email = ?`,
@@ -198,7 +196,6 @@ router.get('/validate-token', async (req: Request, res: Response) => {
   }
 
 });
-
 router.get('/get-refresh-tokens', async (req: Request, res: Response) => {
   const userId = req.query.userId as string;
 
@@ -215,9 +212,9 @@ router.get('/get-refresh-tokens', async (req: Request, res: Response) => {
       return;
     }
 
-    // Buscar todos los refreshTokens en la base de datos para el usuario
+    // Buscar todos los refreshTokens y emails en la base de datos para el usuario
     const [tokens]: any = await db.query(
-      `SELECT refreshToken FROM connections WHERE userId = ?`,
+      `SELECT refreshToken, email FROM connections WHERE userId = ?`,
       [userId]
     );
 
@@ -226,20 +223,21 @@ router.get('/get-refresh-tokens', async (req: Request, res: Response) => {
       return;
     }
 
-    // Extraer los refreshTokens como un array
+    // Extraer los refreshTokens y emails como arrays
     const refreshTokens = tokens.map((token: { refreshToken: string }) => token.refreshToken);
+    const emails = tokens.map((token: { email: string }) => token.email);
 
-    console.log("RefreshTokens encontrados:", refreshTokens);
 
+    // Enviar los refreshTokens y los emails como respuesta
     res.status(200).send({
-       refreshTokens,
+      refreshTokens,
+      emails,
     });
   } catch (error) {
     console.error("Error al obtener los refreshTokens:", error);
     res.status(500).send("Error interno del servidor.");
   }
 });
-
 
 
 router.post("/revoke-token", async (req: Request, res: Response) => {
@@ -267,7 +265,6 @@ router.post("/revoke-token", async (req: Request, res: Response) => {
 
     const tokenInfoUrl = `https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${accessToken || ''}`;
     try {
-      console.log(tokenInfoUrl);
       const response = await axios.get(tokenInfoUrl);
 
       email = response.data.email;
@@ -341,7 +338,6 @@ router.get('/handyInfo', async (req: Request, res: Response) => {
       return;
     }
 
-    console.log(connection)
 
     res.status(200).send({
       userId,
