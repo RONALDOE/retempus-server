@@ -122,7 +122,10 @@ router.get("/filtered", async (req: Request, res: Response) => {
     }
 
     // Unir todas las condiciones
-    const finalQuery = queryConditions.length > 0 ? queryConditions.join(" and ") : "trashed = false"; // Si no hay parámetros, solo trae archivos no eliminados
+    const finalQuery =
+      queryConditions.length > 0
+        ? queryConditions.join(" and ")
+        : "trashed = false"; // Si no hay parámetros, solo trae archivos no eliminados
 
     // Consulta en Google Drive
     const response = await drive.files.list({
@@ -143,7 +146,6 @@ router.get("/filtered", async (req: Request, res: Response) => {
     res.status(500).json({ error: "No se pudieron listar los archivos" });
   }
 });
-
 
 /// Nueva ruta para descargar un archivo por ID
 router.get("/download", async (req: Request, res: Response) => {
@@ -263,8 +265,8 @@ router.delete("/delete", async (req: Request, res: Response) => {
 
 // Ruta para eliminar un archivo por ID
 router.put("/trash", async (req: Request, res: Response) => {
-  
   const { fileId, accessToken } = req.query; // El archivo a eliminar por su ID
+  console.log(fileId, accessToken);
 
   if (!fileId || !accessToken) {
     res.status(400).json({ error: "fileId y accessToken son requeridos." });
@@ -311,7 +313,12 @@ router.get("/trashcan", async (req: Request, res: Response) => {
     });
 
     const files = response.data.files || [];
-    res.json(files);
+    res.json({
+      files: files.map((file) => ({
+        ...file, // Desestructura las propiedades de cada archivo
+        accessToken, // Asegúrate de que el token esté aquí
+      })),
+    });
   } catch (err) {
     console.error("Error al listar los archivos en la papelera:", err);
     res
@@ -319,6 +326,40 @@ router.get("/trashcan", async (req: Request, res: Response) => {
       .json({ error: "No se pudieron listar los archivos en la papelera" });
   }
 });
+
+
+
+// Ruta para eliminar un archivo por ID
+router.put("/untrash", async (req: Request, res: Response) => {
+  const { fileId, accessToken } = req.query; // El archivo a eliminar por su ID
+
+  if (!fileId || !accessToken) {
+    res.status(400).json({ error: "fileId y accessToken son requeridos." });
+    return;
+  }
+
+  try {
+    // Configurar el cliente con el token del usuario
+    oAuth2Client.setCredentials({ access_token: accessToken as string });
+
+    // Llamar a la API para eliminar el archivo
+    drive.files.update({
+      fileId: fileId as string,
+      requestBody: { trashed: false },
+    });
+
+    console.log(`Archivo con ID ${fileId} eliminado correctamente.`);
+
+    // Responder con éxito
+    res.status(200).json({ message: "Archivo eliminado exitosamente." });
+  } catch (error) {
+    console.error("Error al eliminar el archivo:", error);
+    res.status(500).json({ error: "Error al eliminar el archivo." });
+  }
+});
+
+
+
 // Ruta para buscar archivos en la papelera con múltiples filtros
 router.get("/search-trashcan", async (req: Request, res: Response) => {
   const accessToken = req.query.accessToken as string;
@@ -416,6 +457,98 @@ router.get("/search-trashcan", async (req: Request, res: Response) => {
       .json({ error: "No se pudieron realizar la búsqueda en la papelera" });
   }
 });
+
+router.get("/folders", async (req: Request, res: Response) => {
+  const accessToken = req.query.accessToken as string;
+  const folderId = req.query.folderId as string || "root"; // Usa 'root' si no se proporciona folderId
+  console.log(`AccessToken: ${accessToken}, FolderId: ${folderId}`);
+
+  if (!accessToken) {
+    res.status(400).json({ error: "El token de acceso es requerido." });
+    return;
+  }
+
+  oAuth2Client.setCredentials({
+    access_token: accessToken,
+  });
+
+  try {
+    // Lista las carpetas dentro del folderId dado
+    const response = await drive.files.list({
+      q: `mimeType='application/vnd.google-apps.folder' and trashed = false and '${folderId}' in parents`,
+      fields: "files(id, name, mimeType, trashed, createdTime, modifiedTime, size, fileExtension, iconLink, parents)",
+    });
+
+    const folders = response.data.files || [];
+
+    // Si no estamos en la raíz, obtener el padre de la carpeta actual
+    if (folderId !== "root" && folders.length > 0) {
+      const currentFolder = folders[0];  // Tomamos el primer elemento como carpeta actual
+      const parentId = currentFolder.parents ? currentFolder.parents[0] : null;
+
+      if (parentId) {
+        // Obtenemos la carpeta padre
+        const parentFolderResponse = await drive.files.get({
+          fileId: parentId,
+          fields: "id, name, mimeType, iconLink, parents"
+        });
+
+        const parentFolder = parentFolderResponse.data;
+        const backFolder = {
+          id: parentFolder.parents ? parentFolder.parents[0] : "root",
+          name: "Back",  // El nombre de la carpeta "back"
+          mimeType: parentFolder.mimeType,
+          iconLink: "https://img.icons8.com/glyph-neue/16/circled-left-2.png"
+        };
+
+        folders.unshift(backFolder);  // Añadimos la carpeta "back" al inicio de la lista de carpetas
+      }
+    }
+
+    res.json(folders);  // Enviar la respuesta con las carpetas y la carpeta "back" si aplica
+  } catch (err) {
+    console.error("Error al listar carpetas:", err);
+    res.status(500).json({ error: "No se pudieron listar las carpetas." });
+  }
+});
+
+
+// Ruta para crear una carpeta
+router.post("/folders", async (req: Request, res: Response) => {
+  console.log(req.body);
+  const accessToken = req.body.accessToken as string;
+  const folderName = req.body.folderName;
+  const folderParent = req.body.folderParent || "root"; // Usar 'root' si no se proporciona un padre
+
+  if (!accessToken || !folderName) {
+    res.status(400).json({ error: "El token de acceso y el nombre de la carpeta son requeridos." });
+    return;
+  }
+
+  oAuth2Client.setCredentials({
+    access_token: accessToken,
+  });
+
+  try {
+    const response = await drive.files.create({
+      requestBody: {
+        name: folderName,
+        mimeType: "application/vnd.google-apps.folder",
+        parents: [folderParent],
+      },
+      fields: "id, name",
+    });
+
+    res.status(201).json({
+      message: "Carpeta creada exitosamente.",
+      folder: response.data,
+    });
+  } catch (err) {
+    console.error("Error al crear la carpeta:", err);
+    res.status(500).json({ error: "No se pudo crear la carpeta." });
+  }
+});
+
 
 // Ruta raíz
 router.get("/", (req: Request, res: Response) => {

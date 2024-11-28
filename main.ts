@@ -18,7 +18,9 @@ app.get('/', (req: Request, res: Response) => {
 
 
 app.use(express.json());
-app.use(cors());
+app.use(cors( {
+  methods: ["POST", "GET", "DELETE", "PUT"]
+}));
 app.use('/files', files)
 app.use('/gauth', gauth)
 app.use('/auth', auth)
