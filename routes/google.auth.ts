@@ -104,7 +104,8 @@ router.get("/callback", async (req: Request, res: Response) => {
     );
 
     if (linkedEmails[0].count > 0) {
-      res.status(400).send("Correo electrónico ya vinculado a una cuenta.");
+      console.log("Correo electrónico ya vinculado a una cuenta.");
+      res.status(401).redirect("http://localhost:3000/dashboard");
       return;
     }
 
@@ -114,10 +115,12 @@ router.get("/callback", async (req: Request, res: Response) => {
       [userId, userEmail, tokens.refresh_token]
     );
 
-    res.send("Autenticación exitosa y datos guardados en la base de datos.");
+    console.log("Autenticación exitosa y datos guardados en la base de datos.");
+    res.redirect("http://localhost:3000/connected");
   } catch (error) {
     console.error("Error authenticating:", error);
-    res.status(500).send("Authentication failed.");
+    res.status(500).redirect("http://localhost:3000/dashboard");
+
   }
 });
 
@@ -241,8 +244,8 @@ router.get('/get-refresh-tokens', async (req: Request, res: Response) => {
 
 
 router.post("/revoke-token", async (req: Request, res: Response) => {
-  const userId = req.body.userId as string;
-  const accessToken = req.body.accessToken as string;
+  console.log(req.body)
+  const {userId, accessToken} = req.body as {userId: string, accessToken: string};
     let email  
 
   if (!userId) {
@@ -334,7 +337,7 @@ router.get('/handyInfo', async (req: Request, res: Response) => {
 
 
     if (!connection || connection.length === 0) {
-      res.status(404).send("Usuario no tiene conexiones.");
+      res.status(200).send("Usuario no tiene conexiones.");
       return;
     }
 

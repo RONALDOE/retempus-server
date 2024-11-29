@@ -548,6 +548,64 @@ router.post("/folders", async (req: Request, res: Response) => {
     res.status(500).json({ error: "No se pudo crear la carpeta." });
   }
 });
+// Ruta para crear un archivo de Google según el tipo (documento, hoja de cálculo, etc.)
+router.post("/create-document", async (req: Request, res: Response) => {
+  const accessToken = req.body.accessToken; // El token de acceso
+  const fileType = req.body.fileType || "document"; // Tipo de archivo, por defecto "document"
+  
+  if (!accessToken) {
+    res.status(400).json({ error: "El token de acceso es requerido." });
+    return;
+  }
+
+  oAuth2Client.setCredentials({ access_token: accessToken });
+
+  try {
+    // Definir los tipos de archivo y sus mimeTypes
+    let fileMetadata: { name: string; mimeType: string };
+    let fileUrl: string;
+
+    switch (fileType) {
+      case "spreadsheet":
+        fileMetadata = {
+          name: "Nueva Hoja de Cálculo",
+          mimeType: "application/vnd.google-apps.spreadsheet", // Tipo para hojas de cálculo
+        };
+        fileUrl = `https://docs.google.com/spreadsheets/d/{fileId}/edit`;
+        break;
+      case "presentation":
+        fileMetadata = {
+          name: "Nueva Presentación",
+          mimeType: "application/vnd.google-apps.presentation", // Tipo para presentaciones
+        };
+        fileUrl = `https://docs.google.com/presentation/d/{fileId}/edit`;
+        break;
+      case "document":
+      default:
+        fileMetadata = {
+          name: "Nuevo Documento",
+          mimeType: "application/vnd.google-apps.document", // Tipo para Google Docs
+        };
+        fileUrl = `https://docs.google.com/document/d/{fileId}/edit`;
+        break;
+    }
+
+    // Crear el archivo en Google Drive
+    const file = await drive.files.create({
+      requestBody: fileMetadata,
+    });
+
+    // URL para ver el archivo en el tipo seleccionado
+    const fileId = file.data.id;
+    const redirectUrl = fileUrl.replace("{fileId}", fileId!);
+
+    // Redirigir al usuario a la URL del archivo creado
+    res.status(200).json({ redirectUrl });
+  } catch (error) {
+    console.error("Error al crear el documento:", error);
+    res.status(500).json({ error: "Error al crear el documento." });
+  }
+});
 
 
 // Ruta raíz
