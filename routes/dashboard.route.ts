@@ -113,6 +113,7 @@ router.get("/driveInfo", async (req: Request, res: Response) => {
      
   
       if (files.length === 0) {
+        console.log('')
         res.json({ message: "No se encontraron archivos recientes" });
       } else {
         res.json({

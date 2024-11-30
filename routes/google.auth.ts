@@ -105,7 +105,7 @@ router.get("/callback", async (req: Request, res: Response) => {
 
     if (linkedEmails[0].count > 0) {
       console.log("Correo electrónico ya vinculado a una cuenta.");
-      res.status(401).redirect("http://localhost:3000/dashboard");
+      res.status(401).redirect("process.env.FRONTEND_URLdashboard");
       return;
     }
 
@@ -116,10 +116,10 @@ router.get("/callback", async (req: Request, res: Response) => {
     );
 
     console.log("Autenticación exitosa y datos guardados en la base de datos.");
-    res.redirect("http://localhost:3000/connected");
+    res.redirect("http://localhost:3001/connected");
   } catch (error) {
     console.error("Error authenticating:", error);
-    res.status(500).redirect("http://localhost:3000/dashboard");
+    res.status(500).redirect("process.env.FRONTEND_URLdashboard");
 
   }
 });

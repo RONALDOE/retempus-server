@@ -190,7 +190,7 @@ router.post(
         }
       );
 
-      const resetLink = `http://localhost:3000/reset/${token}`; // Cambia la URL por la de tu frontend
+      const resetLink = `process.env.FRONTEND_URLreset/${token}`; // Cambia la URL por la de tu frontend
 
       // Enviar correo
       await transporter.sendMail({
