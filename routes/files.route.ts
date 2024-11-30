@@ -1,6 +1,7 @@
 import express, { Router, Request, Response } from "express";
 import dotenv from "dotenv";
 import { google } from "googleapis";
+import stream  from "stream";
 dotenv.config();
 
 const router: Router = express();
@@ -44,11 +45,9 @@ router.get("/files", async (req, res) => {
   }
 });
 
-// Ruta para listar archivos por filtros
 router.get("/filtered", async (req: Request, res: Response) => {
-  console.log(req.query);
-
   const accessToken = req.query.accessToken as string;
+  let folderId = req.query.folderId as string || "root"; // Carpeta raíz por defecto
   const categories = req.query.categories as string;
   const date = req.query.date as string;
   const containsWords = req.query.containsWords as string;
@@ -56,25 +55,25 @@ router.get("/filtered", async (req: Request, res: Response) => {
   const startModified = req.query.startModified as string;
   const endModified = req.query.endModified as string;
 
-  // Validar que el token de acceso esté presente
   if (!accessToken) {
     res.status(400).send("El token de acceso es requerido.");
     return;
   }
 
-  // Función para validar fechas
-  const validateDate = (date: string) => !isNaN(Date.parse(date)); // Verifica si es una fecha válida
+  const validateDate = (date: string) => !isNaN(Date.parse(date));
 
   try {
-    // Configurar el token en el cliente de OAuth2
     oAuth2Client.setCredentials({
       access_token: accessToken,
     });
 
-    // Construir las condiciones dinámicas de la consulta
     const queryConditions: string[] = [];
+    
+    // Si folderId es null o undefined, se asegura de que se use 'root'
+    if (!folderId) {
+      folderId = "root"; 
+    }
 
-    // Filtrar por categorías (mimeType)
     if (categories) {
       const slicedCategories = categories.split(",");
       const mimeTypeQuery = slicedCategories
@@ -83,24 +82,20 @@ router.get("/filtered", async (req: Request, res: Response) => {
       queryConditions.push(`(${mimeTypeQuery})`);
     }
 
-    // Filtrar por nombre que contiene palabras específicas
     if (containsWords) {
       queryConditions.push(`name contains '${containsWords}'`);
     }
 
-    // Filtrar por fecha de creación exacta (si es válida)
     if (date && validateDate(date)) {
       queryConditions.push(`createdTime = '${new Date(date).toISOString()}'`);
     }
 
-    // Filtrar por fecha de última modificación exacta (si es válida)
     if (modifiedDate && validateDate(modifiedDate)) {
       queryConditions.push(
         `modifiedTime = '${new Date(modifiedDate).toISOString()}'`
       );
     }
 
-    // Filtrar por rango de fechas de última modificación (si son válidas)
     if (
       startModified &&
       endModified &&
@@ -116,36 +111,64 @@ router.get("/filtered", async (req: Request, res: Response) => {
       );
     }
 
-    // Si hay condiciones, agregar la condición 'trashed = false'
-    if (queryConditions.length > 0) {
-      queryConditions.push("trashed = false");
-    }
+    queryConditions.push(`'${folderId != "null"? folderId : "root"}' in parents`);
 
-    // Unir todas las condiciones
-    const finalQuery =
-      queryConditions.length > 0
-        ? queryConditions.join(" and ")
-        : "trashed = false"; // Si no hay parámetros, solo trae archivos no eliminados
+    const finalQuery = queryConditions.join(" and ");
 
-    // Consulta en Google Drive
     const response = await drive.files.list({
-      q: finalQuery, // Consulta dinámica
+      q: queryConditions.length > 1 ? finalQuery : `'${folderId != "null"? folderId : "root"}' in parents and trashed = false`,
       fields:
-        "files(id, name, mimeType, modifiedTime, iconLink, webViewLink, starred, size, fileExtension)", // Especificar los campos necesarios
+        "files(id, name, mimeType, modifiedTime, iconLink, webViewLink, starred, size, fileExtension, parents)",
     });
 
-    // Responder con la lista de archivos
     const files = response.data.files || [];
+
+    if (folderId !== "root") {
+      let backFolder: { id: string; name: string; mimeType: string; iconLink: string } | null = null;
+
+      // Si estamos en una subcarpeta, obtener el padre
+      if (files.length > 0 && files[0].parents) {
+        const parentId = files[0].parents[0];
+
+        const parentFolderResponse = await drive.files.get({
+          fileId: parentId,
+          fields: "id, parents",
+        });
+
+        const parentFolder = parentFolderResponse.data;
+
+        backFolder = {
+          id: parentFolder.parents ? parentFolder.parents[0] : "root",
+          name: "Back",
+          mimeType: "application/vnd.google-apps.folder",
+          iconLink: "https://img.icons8.com/glyph-neue/16/circled-left-2.png",
+        };
+      } else {
+        // Si no hay archivos en la carpeta pero no estamos en la raíz, agregar "Back"
+        backFolder = {
+          id: "root",
+          name: "Back",
+          mimeType: "application/vnd.google-apps.folder",
+          iconLink: "https://img.icons8.com/glyph-neue/16/circled-left-2.png",
+        };
+      }
+
+      if (backFolder) {
+        files.unshift(backFolder);
+      }
+    }
+
     res.json({
       files: files.map((file) => ({
-        ...file, // Desestructura las propiedades de cada archivo
-        accessToken, // Asegúrate de que el token esté aquí
+        ...file,
+        accessToken,
       })),
     });
   } catch (err) {
-    res.status(500).json({ error: "No se pudieron listar los archivos" });
+    res.status(500).json({ error: "No se pudieron listar los archivos o carpetas." });
   }
 });
+
 
 /// Nueva ruta para descargar un archivo por ID
 router.get("/download", async (req: Request, res: Response) => {
@@ -512,6 +535,60 @@ router.get("/folders", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/folderContent", async (req: Request, res: Response) => {
+  const accessToken = req.query.accessToken as string;
+  const folderId = req.query.folderId as string || "root"; // Usa 'root' si no se proporciona folderId
+  console.log(`AccessToken: ${accessToken}, FolderId: ${folderId}`);
+
+  if (!accessToken) {
+    res.status(400).json({ error: "El token de acceso es requerido." });
+    return;
+  }
+
+  oAuth2Client.setCredentials({
+    access_token: accessToken,
+  });
+
+  try {
+    // Lista las carpetas dentro del folderId dado
+    const response = await drive.files.list({
+      q: `trashed = false and '${folderId}' in parents`,
+      fields: "files(id, name, mimeType, trashed, createdTime, modifiedTime, size, fileExtension, iconLink, parents)",
+    });
+
+    const folders = response.data.files || [];
+
+    // Si no estamos en la raíz, obtener el padre de la carpeta actual
+    if (folderId !== "root" && folders.length > 0) {
+      const currentFolder = folders[0];  // Tomamos el primer elemento como carpeta actual
+      const parentId = currentFolder.parents ? currentFolder.parents[0] : null;
+
+      if (parentId) {
+        // Obtenemos la carpeta padre
+        const parentFolderResponse = await drive.files.get({
+          fileId: parentId,
+          fields: "id, name, mimeType, iconLink, parents"
+        });
+
+        const parentFolder = parentFolderResponse.data;
+        const backFolder = {
+          id: parentFolder.parents ? parentFolder.parents[0] : "root",
+          name: "Back",  // El nombre de la carpeta "back"
+          mimeType: parentFolder.mimeType,
+          iconLink: "https://img.icons8.com/glyph-neue/16/circled-left-2.png"
+        };
+
+        folders.unshift(backFolder);  // Añadimos la carpeta "back" al inicio de la lista de carpetas
+      }
+    }
+
+    res.json(folders);  // Enviar la respuesta con las carpetas y la carpeta "back" si aplica
+  } catch (err) {
+    console.error("Error al listar carpetas:", err);
+    res.status(500).json({ error: "No se pudieron listar las carpetas." });
+  }
+});
+
 
 // Ruta para crear una carpeta
 router.post("/folders", async (req: Request, res: Response) => {
@@ -606,6 +683,58 @@ router.post("/create-document", async (req: Request, res: Response) => {
     res.status(500).json({ error: "Error al crear el documento." });
   }
 });
+
+router.post("/upload", async (req: Request, res: Response) => {
+  const accessToken = req.body.accessToken as string;
+  const folderId = req.body.folderId as string || "root"; // Carpeta destino
+  const file = req.files.file; // Archivo enviado en la solicitud
+
+  if (!accessToken || !file) {
+    res.status(400).json({ error: "El token de acceso y el archivo son requeridos." });
+    return;
+  }
+
+  // Verifica si el archivo está en un formato esperado
+  if (Array.isArray(file)) {
+    res.status(400).json({ error: "Se esperaba un solo archivo." });
+    return;
+  }
+
+  try {
+    // Configurar el cliente OAuth con el token
+    oAuth2Client.setCredentials({ access_token: accessToken });
+
+    // Crear el archivo en Google Drive
+    const fileMetadata = {
+      name: file.name,
+      parents: [folderId], // Guardar en la carpeta especificada
+    };
+
+    const media = {
+      mimeType: file.mimetype,
+      body: new stream.PassThrough().end(file.data), // Archivo en buffer
+    };
+
+    console.log("enviando archivo")
+    const response = await drive.files.create({
+      requestBody: fileMetadata,
+      media,
+      fields: "id, name, webViewLink",
+    });
+    console.log("jeje")
+
+
+    const uploadedFile = response.data;
+    res.status(200).json({
+      message: "Archivo subido exitosamente.",
+      file: uploadedFile,
+    });
+  } catch (err) {
+    console.error("Error al subir el archivo:", err);
+    res.status(500).json({ error: "No se pudo subir el archivo." });
+  }
+});
+
 
 
 // Ruta raíz

@@ -5,6 +5,8 @@ import gauth from './routes/google.auth'
 import auth from './routes/auth.route'
 import dashboard from './routes/dashboard.route'
 import cors from 'cors';
+import fileUpload from 'express-fileupload';
+
 
 import { db,  } from './utils/utils.ts';
 dotenv.config();
@@ -16,7 +18,7 @@ app.get('/', (req: Request, res: Response) => {
 });
 
 
-
+app.use(fileUpload());
 app.use(express.json());
 app.use(cors( {
   methods: ["POST", "GET", "DELETE", "PUT"]
